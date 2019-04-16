@@ -4,7 +4,7 @@
 #include "drivers/mss_uart/mss_uart.h"
 
 #include "controller.h"
-#include "main.h"
+#include "vga.h"
 #include "menu.h"
 #include "pixy.h"
 #include "soundboard.h"
@@ -16,9 +16,8 @@ __attribute__((interrupt)) void Fabric_IRQHandler(void) {
     NVIC_ClearPendingIRQ(Fabric_IRQn);
 
     int i;
-
     if (started) {
-        for (i = 0; i < 4; i++) {
+        for (i = 0; i < sq_num; i++) {
             random_mode(i);
         }
         set_score(score);
@@ -28,19 +27,6 @@ __attribute__((interrupt)) void Fabric_IRQHandler(void) {
 int main() {
     /* Enable FABINT Interrupt for generating tiles */
     NVIC_EnableIRQ(Fabric_IRQn);
-
-    // pixy
-    // x: 0~320, left to right
-    // y: 0~200, up to down
-
-    // range.lbx = 63;
-    // range.lby = 164;
-    // range.rbx = 285;
-    // range.rby = 165;
-    // range.ltx = 54;
-    // range.lty = 20;
-    // range.rtx = 311;
-    // range.rty = 25;
 
     // vga
     vga_init();

@@ -12,7 +12,6 @@
 #define res_width 640
 #define res_length 480
 #define longest_delay 60
-#define HEART 1
 #define heart_num 3
 //0..9: col_width 10..19: col1 20..29: col2
 static volatile int* col_addr1 = (int *) 0x40050000;
@@ -61,9 +60,9 @@ void sq_init() {
 void health_init() {
 	volatile int *addr[5] = {(int *)0x4005003c, (int *)0x40050040, (int *)0x40050044, (int *)0x40050048, (int *)0x4005004c};
 	int i;
-	for (i = 0; i < 5; i++) {
+	for (i = 0; i < heart_num; i++) {
 		health[i].addr = addr[i];
-		*addr[i] = HEART;
+		*addr[i] = 1;
 		health[i].alive = 1;
 	}
 }
@@ -90,20 +89,20 @@ void random_mode(int k) {
 			//at the bottom
 			length += speed;
 			if (length < 0) {
-//				if (sq[k].left_on == 0 && sq[k].right_on == 0) {
+				if (sq[k].left_on == 0 && sq[k].right_on == 0) {
 //					//miss tbe tile
-//					int i;
-//					bool found = false;
-//					for (i = heart_num - 1; i >= 0; i--)
-//						if (health[i].alive) {
-//							health[i].alive = 0;
-//							found = true;
-//						}
-//					if (!found) {
-//						//health use up
-//						//started = false;
-//					}
-//				}
+					int i;
+					bool found = false;
+					for (i = heart_num - 1; i >= 0; i--)
+						if (health[i].alive) {
+							health[i].alive = 0;
+							found = true;
+						}
+					if (!found) {
+						//health use up
+						//started = false;
+					}
+				}
 				length = 0;
 				sq[k].left_on = 0;
 				sq[k].right_on = 0;

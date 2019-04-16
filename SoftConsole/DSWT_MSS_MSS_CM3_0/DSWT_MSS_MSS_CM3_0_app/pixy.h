@@ -60,9 +60,9 @@ typedef struct {
     int top_x, top_y, length;
     int actual_length;
     //0..9 top_x 10..19 top_y 20..29 length 30 left_foot_on 31 right_foot_on
-    volatile int* addr;
     int left_on;
     int right_on;
+    volatile int* addr;
 } sq_info;
 
 
