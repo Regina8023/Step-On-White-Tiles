@@ -22,6 +22,7 @@ __attribute__((interrupt)) void Fabric_IRQHandler(void) {
             random_mode(i);
         }
         set_score(score);
+        set_health();
     }
 }
 int main() {

@@ -374,9 +374,40 @@ module Core_Control(input PCLK,                  // clock
     .x(x),
     .y(y),
     .h(h1),
-    .x1(12),
+    .x0(8),
+    .y0(120)
     );
-    assign h = h1 | h2 | h3 | h4 | h5;
+
+    wire h2;
+    get_health read_heart2(
+    .clk(PCLK),
+    .res(PRESERN),
+    .write_en0(VGA_write_en),
+    .right_addr(PADDR[11:0] == 12'h03c),
+    .pwdata(PWDATA),
+    .animate(animate),
+    .x(x),
+    .y(y),
+    .h(h2),
+    .x0(68),
+    .y0(120)
+    );
+
+    wire h3;
+    get_health read_heart3(
+    .clk(PCLK),
+    .res(PRESERN),
+    .write_en0(VGA_write_en),
+    .right_addr(PADDR[11:0] == 12'h040),
+    .pwdata(PWDATA),
+    .animate(animate),
+    .x(x),
+    .y(y),
+    .h(h3),
+    .x0(128),
+    .y0(120)
+    );
+    assign h = h1 | h2 | h3;
     assign num = num0 | num1 | num2;
     assign sq1_no = (sq1 & (~left_1) & (~right_1));
     assign sq2_no = (sq2 & (~left_2) & (~right_2));

@@ -12,7 +12,8 @@
 #define res_width 640
 #define res_length 480
 #define longest_delay 60
-#define HEART 0x1bffdc4
+#define HEART 1
+#define heart_num 3
 //0..9: col_width 10..19: col1 20..29: col2
 static volatile int* col_addr1 = (int *) 0x40050000;
 //0..9: col3 10..19: col4 20..29: col5
@@ -24,13 +25,12 @@ static volatile int* num_addr0 = (int *) 0x4005001c;
 static volatile int* num_addr1 = (int *) 0x40050020;
 static volatile int* num_addr2 = (int *) 0x40050028;
 static int number[10] = {0x0f99999f, 0x04444444, 0x0f11f88f, 0x0f11f11f, 0x0aaaaf22, 0x0f88f11f, 0x0f88f99f, 0x0f111111, 0x0f99f99f, 0x0f99f11f};
-int speed = -5;
-int health_num;
+int speed;
 sq_info sq[8];
 
 typedef struct {
 	volatile int* addr;
-	bool alive;
+	int alive;
 }health_info;
 
 health_info health[5];
@@ -59,10 +59,9 @@ void sq_init() {
 }
 
 void health_init() {
-	health_num = 5;
 	volatile int *addr[5] = {(int *)0x40050038, (int *)0x4005003c, (int *)0x40050040, (int *)0x40050044, (int *)0x40050048};
 	int i;
-	for (i = 0; i < 5; i++) {
+	for (i = 0; i < heart_num; i++) {
 		health[i].addr = addr[i];
 		*addr[i] = HEART;
 		health[i].alive = 1;
@@ -91,8 +90,21 @@ void random_mode(int k) {
 			//at the bottom
 			length += speed;
 			if (length < 0) {
+				if (!sq[k].left_on && !sq[k].right_on) {
+					//miss tbe tile
+					int i;
+					bool found = false;
+					for (i = health_num - 1; i >= 0; i++)
+						if (health[i].alive) {
+							health[i].alive = 0;
+							found = true;
+						}
+					if (!found) {
+						//health use up 
+						//started = false;
+					}
+				}
 				length = 0;
-				// score += (sq[k].left_on | sq[k].right_on);
 				sq[k].left_on = 0;
 				sq[k].right_on = 0;
 				sq[k].actual_length = 0;
@@ -124,6 +136,12 @@ void set_score(int x) {
 	*num_addr2 = number[y / 10];
 }
 
+void set_health() {
+	int i;
+	for (i = 0; i < health_num; i++)
+		*health[i].addr = health[i].alive;
+}
+
 void delay(int x) {
 	int i;
 	for (i = 0; i < x; i++);
@@ -133,7 +151,9 @@ void vga_init() {
 	sq_init();
 	health_init();
     score = 0;
+    speed = -5;
     set_score(score);
+    set_health();
 }
 
 
