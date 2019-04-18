@@ -12,16 +12,23 @@
 Command NES_command_struct;
 Command prev_NES_command_struct;
 
+
 __attribute__((interrupt)) void Fabric_IRQHandler(void) {
     NVIC_ClearPendingIRQ(Fabric_IRQn);
 
     int i;
-    if (started) {
+    if (started && !dead) {
         for (i = 0; i < sq_num; i++) {
             random_mode(i);
         }
         set_score(score);
         set_health();
+        bool found = false;
+        for (i = 0; i < heart_num; i++)
+        	if (health[i].alive)
+        		found = true;
+        if (!found)
+        	dead = true;
     }
 }
 int main() {

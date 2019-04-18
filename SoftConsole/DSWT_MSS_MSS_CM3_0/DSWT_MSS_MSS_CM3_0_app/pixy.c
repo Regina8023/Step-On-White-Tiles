@@ -89,7 +89,7 @@ bool is_left_on_tile(sq_info* tiles, Two_Block oneframe) {
                 }
             }
         }
-    } else if (oneframe.signature2 == 1) {
+    } /*else if (oneframe.signature2 == 1) {
         size_t i = 0;
         for (i = 0; i < n_tiles; i++) {
             //		sq_info tile = tiles[i];
@@ -105,7 +105,7 @@ bool is_left_on_tile(sq_info* tiles, Two_Block oneframe) {
                 }
             }
         }
-    }
+    }*/
 
     return result;
 }
@@ -128,7 +128,7 @@ bool is_right_on_tile(sq_info* tiles, Two_Block oneframe) {
                 }
             }
         }
-    } else if (oneframe.signature2 == 2) {
+    } /*else if (oneframe.signature2 == 2) {
         size_t i = 0;
         for (i = 0; i < n_tiles; i++) {
             if (oneframe.col2 == tiles[i].col - 1) {
@@ -143,7 +143,7 @@ bool is_right_on_tile(sq_info* tiles, Two_Block oneframe) {
                 }
             }
         }
-    }
+    }*/
     return result;
 }
 

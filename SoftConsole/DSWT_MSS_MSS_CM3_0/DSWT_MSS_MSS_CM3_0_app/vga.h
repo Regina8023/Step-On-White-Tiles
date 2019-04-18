@@ -5,14 +5,15 @@
 #define SAME_LENGTH 50
 #include "pixy.h"
 #include "CMSIS/a2fxxxm3.h"
+#include <time.h>
 //width of column
 #define width 96
 //width of column line
 #define col_width 5
 #define res_width 640
 #define res_length 480
-#define longest_delay 60
-#define heart_num 3
+#define longest_delay 500
+#define heart_num 5
 //0..9: col_width 10..19: col1 20..29: col2
 static volatile int* col_addr1 = (int *) 0x40050000;
 //0..9: col3 10..19: col4 20..29: col5
@@ -24,9 +25,9 @@ static volatile int* num_addr0 = (int *) 0x4005001c;
 static volatile int* num_addr1 = (int *) 0x40050020;
 static volatile int* num_addr2 = (int *) 0x40050028;
 static int number[10] = {0x0f99999f, 0x04444444, 0x0f11f88f, 0x0f11f11f, 0x0aaaaf22, 0x0f88f11f, 0x0f88f99f, 0x0f111111, 0x0f99f99f, 0x0f99f11f};
-int speed = -5;
+int speed = -3;
 sq_info sq[8];
-
+bool dead = false;
 typedef struct {
 	volatile int* addr;
 	int alive;
@@ -46,7 +47,7 @@ void define_column() {
 void sq_init() {
 	int i;
 	volatile int *addr[8] = {(int *)0x40050008, (int *)0x4005000c, (int *)0x40050010, (int *)0x40050014, (int *)0x40050018, (int *)0x4005002c, (int *)0x40050030, (int *)0x40050034};
-	for (i = 0; i < sq_num; i++) {
+	for (i = 0; i < 8; i++) {
 		sq[i].length = 0;
 		sq[i].actual_length = 0;
 		sq[i].addr = addr[i];
@@ -67,14 +68,25 @@ void health_init() {
 	}
 }
 
+bool overlap(int k) {
+	int i;
+	for (i = 0; i < sq_num; i++)
+		if (i != k && !sq[i].delay && sq[i].col == sq[k].col) {
+			if (sq[i].top_y + sq[i].length > sq[k].top_y - 10)
+				return true;
+		}
+	//not overlap with anyone
+	return false;
+}
+
 void random_mode(int k) {
 	volatile int *addr = sq[k].addr;
 	int actual_length = sq[k].actual_length;
 	int top_x = sq[k].top_x;
 	int top_y = sq[k].top_y;
 	int length = sq[k].length;
-	if (actual_length == 0) {
-		//square doesn't exist not
+	if (sq[k].delay) {
+		//square doesn't exist
 		sq[k].delay--;
 		if (!sq[k].delay) {
 			//generate new square
@@ -83,6 +95,8 @@ void random_mode(int k) {
 			sq[k].col = (rand() % 4) + 1;
 			top_x = get_col_pos(sq[k].col);
 			top_y = res_length - 2;
+			if (overlap(k))
+				sq[k].delay = 10;
 		}
 	} else if (length < actual_length) {
 		if (top_y == 0) {
@@ -97,11 +111,8 @@ void random_mode(int k) {
 						if (health[i].alive) {
 							health[i].alive = 0;
 							found = true;
+							break;
 						}
-					if (!found) {
-						//health use up
-						//started = false;
-					}
 				}
 				length = 0;
 				sq[k].left_on = 0;
@@ -148,6 +159,7 @@ void set_health() {
 void vga_init() {
 	define_column();
 	sq_init();
+	dead = false;
 	health_init();
     score = 0;
     set_score(score);
