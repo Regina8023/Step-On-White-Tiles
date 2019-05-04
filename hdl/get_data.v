@@ -27,6 +27,7 @@ module get_data(
     output reg [31:0] data
     );
     wire write_en = write_en0 & right_addr;
+    // read data from APB
     always @(posedge clk) begin
         //if (~res) begin
         //    data <= 0;

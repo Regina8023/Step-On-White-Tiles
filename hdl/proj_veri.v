@@ -23,11 +23,14 @@ module Core_Control(input PCLK,                  // clock
     
     assign PSLVERR = 0;                                                       //assumes no error generation
     assign PREADY  = 1;                                                       //assumes zero wait
+
+    //Generate fabric interrupt when scan point is near the end of the frame
     assign FABINT = (x == 635) & (y == 475);
-    // ****** Your code ******
-    wire [9:0] x;         // current pixel x position: 10-bit value: 0-1023
-    wire [8:0] y;         // current pixel y position: 9-bit value: 0-511
     
+    wire [9:0] x;         // current pixel x position
+    wire [8:0] y;         // current pixel y position
+    
+    //BELOW IS CODE FOR CONTROLLER AND SOUND BOARD
     reg [9:0] clock_divider;
     assign clock_divider_max = (clock_divider == 10'd150);
     
@@ -144,9 +147,13 @@ module Core_Control(input PCLK,                  // clock
             end
         end
     end
-      
+    
+
+    //BELOW IS CODE FOR VGA  
     assign VGA_write_en = PWRITE & PENABLE & PSEL;
     wire animate;
+
+    //get basic VGA signals
     vga640x480 display (
     .i_clk(PCLK),
     .i_pix_stb(PCLK),
@@ -157,6 +164,8 @@ module Core_Control(input PCLK,                  // clock
     .o_y(y),
     .o_animate(animate)
     );
+
+    ///0..9: col_width 10..19: x of 1st col 20..29: x of 2nd col
     wire [31:0] col1;
     get_data read_col1(
     .clk(PCLK),
@@ -166,6 +175,7 @@ module Core_Control(input PCLK,                  // clock
     .pwdata(PWDATA),
     .data(col1)
     );
+    //0..9: x of 3rd col 10..19: x of 4th col 20..29: x of 5th col
     wire [31:0] col2;
     get_data read_col2(
     .clk(PCLK),
@@ -175,6 +185,7 @@ module Core_Control(input PCLK,                  // clock
     .pwdata(PWDATA),
     .data(col2)
     );
+    //0..9: length of column (480)
     wire [31:0] col3;
     get_data read_col3(
     .clk(PCLK),
@@ -184,10 +195,14 @@ module Core_Control(input PCLK,                  // clock
     .pwdata(PWDATA),
     .data(col3)
     );
+
+    //show five column dividers
     assign col_length = (y >= 0) & (y < col3);
     assign is_col_y = (((x > col1[19:10]) & (x < col1[19:10] + col1[9:0])) | ((x > col1[29:20]) & (x < col1[29:20] + col1[9:0])) |
                     ((x > col2[19:10]) & (x < col2[19:10] + col1[9:0])) | ((x > col2[9:0]) & (x < col1[9:0] + col2[9:0])) | ((x > col2[29:20]) & (x < col2[29:20] + col1[9:0])))? 1 : 0;
     assign is_col = col_length & is_col_y;
+
+    //get positions for 8 tiles
     wire sq1, left_1, right_1;
     get_sq read_sq1(
     .clk(PCLK),
@@ -315,6 +330,7 @@ module Core_Control(input PCLK,                  // clock
     .right_foot(right_8)
     );
 
+    //get 3 digits of current score
     wire num0;
     get_score read_num0(
     .clk(PCLK),
@@ -363,6 +379,7 @@ module Core_Control(input PCLK,                  // clock
     .x3(168)
     );
     
+    //get 5 health points
     wire h1;
     get_health read_heart1(
     .clk(PCLK),
@@ -437,6 +454,8 @@ module Core_Control(input PCLK,                  // clock
     .x0(100),
     .y0(170)
     );
+
+    //generate VGA signals 
     assign h = h1 | h2 | h3 | h4 | h5;
     assign num = num0 | num1 | num2;
     assign sq1_no = (sq1 & (~left_1) & (~right_1));

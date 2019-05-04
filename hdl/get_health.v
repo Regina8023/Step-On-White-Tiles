@@ -46,6 +46,7 @@ module get_health(
             heart_data <= data[0];
         end
     end
+    // hard code for a heart
     assign l1 = ((y >= y0) & (y < y0 + 6) & (x >= x0 + 6 * 4) & (x < x0 + 6 * 5));
     assign l2 = ((y >= y0 + 6) & (y < y0 + 6 * 2) & (x >= x0 + 6 * 3) & (x < x0 + 6 * 6));
     assign l3 = ((y >= y0 + 6 * 2) & (y < y0 + 6 * 3) & (x >= x0 + 6 * 2) & (x < x0 + 6 * 7));

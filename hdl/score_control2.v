@@ -50,6 +50,7 @@ module get_score(
     
     reg[5:0] pos;
     always @(posedge clk) begin
+        //hard code for displaying number
         if (x == 0 && y == 0)
             pos <= 0;
         else if (((y >= 12) & (y < 108)) & ((x == x1) | (x == x2) | (x == x3)))

@@ -11,12 +11,13 @@
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 #include "drivers/mss_spi/drivers/mss_spi/mss_spi.h"
 #include "drivers/mss_uart/mss_uart.h"
 
 #define PIXY_START_WORD 0xaa55
 #define PIXY_START_WORD_CC 0xaa56
-#define sq_num 8
+int sq_num;
 
 typedef enum Box_Position {
     TOP_LEFT,
@@ -65,20 +66,22 @@ typedef struct {
     volatile int* addr;
 } sq_info;
 
-
 BoundingBox range;
 Position pos;
 int score;
-static uint16_t receive_data[14];
+
+uint16_t receive_data[14];
+uint16_t receiver[2];
 
 Two_Block process();
 uint16_t tf_floor_2_cam(int y);
 bool is_left_on_tile(sq_info* tiles, Two_Block oneframe);
 bool is_right_on_tile(sq_info* tiles, Two_Block oneframe);
-
 /**
  * Modifies: global array `receive_data`
  */
 inline Two_Block Pixy_getData(mss_spi_instance_t* this_spi);
+int decide_col(int offset);
+inline int relu(int x);
 
 #endif /* PIXY_H_ */

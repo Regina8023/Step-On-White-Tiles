@@ -1,12 +1,8 @@
 #include "menu.h"
 
 void Display_clearMenu() {
-    int i;
-    for (i = 0; i < 4; i++)
-        memset(Display.lines[i], 0, sizeof(Display.lines[i]));
-
-    for (i = 0; i < 6; i++)
-        memset(myMenu.layer[i], 0, sizeof(myMenu.layer[i]));
+    memset(Display.lines, 0, sizeof(Display.lines));
+    memset(myMenu.layer, 0, sizeof(myMenu.layer));
 }
 
 void Display_frame(mss_uart_instance_t *this_uart) {
@@ -102,7 +98,7 @@ void Display_enterStart() {
     printf("Before: %x\r\n", *soundboard_addr);
 #endif
 
-    (*soundboard_addr) = ~(1 << (selected_config.selected_song - 1)) & (0xFF);
+    (*soundboard_addr) = ~(1 << selected_config.selected_song) & (0xFF);
 
 #ifdef DEBUG
     printf("After: %x\r\n", *soundboard_addr);
@@ -159,7 +155,7 @@ void Display_enterPrintConfig() {
     }
 
     char num_str[3];
-    sprintf(num_str, "%d", selected_config.selected_song);
+    sprintf(num_str, "%d", selected_config.selected_song + 1);
     strcat(myMenu.layer[1], num_str);
 
     strcpy(myMenu.layer[3], "  LEFT for return  ");
@@ -195,47 +191,89 @@ void Display_enterCalibration() {
     myMenu.frame.end_line = 2;
     myMenu.curr_location = PRINT;
 
-    // Display_displayMenu(&g_mss_uart1);
+    Display_displayMenu(&g_mss_uart1);
 
-    int i;
     int x_mean = 0;
     int y_mean = 0;
-    int count = 50;
-    for (i = 0; i < count; i++) {
+    int count = 0;
+    int num_means = 50;
+    while (count < num_means) {
         Two_Block data = Pixy_getData(&g_mss_spi1);
+        if (data.signature1 == 0) continue;
         x_mean += data.x1;
         y_mean += data.y1;
+        count++;
     }
 
-    x_mean /= count;
-    y_mean /= count;
+    x_mean /= num_means;
+    y_mean /= num_means;
+
+    char s[20];
 
     switch (pos) {
         case TOP_LEFT:
             range.ltx = x_mean;
             range.lty = y_mean;
+
+            Display_clearMenu();
+            strcpy(myMenu.layer[0], "     Top Left      ");
+            sprintf(s, "x: %d, y: %d", range.ltx, range.lty);
+            strcpy(myMenu.layer[1], s);
+            strcpy(myMenu.layer[3], "  LEFT for return  ");
+            myMenu.frame.length = 4;
+            myMenu.frame.end_line = 4;
+            Display_displayMenu(&g_mss_uart1);
+
             printf("Top-left: %d, %d\r\n", range.ltx, range.lty);
             break;
         case TOP_RIGHT:
             range.rtx = x_mean;
             range.rty = y_mean;
+
+            Display_clearMenu();
+            strcpy(myMenu.layer[0], "     Top Right     ");
+            sprintf(s, "x: %d, y: %d", range.rtx, range.rty);
+            strcpy(myMenu.layer[1], s);
+            strcpy(myMenu.layer[3], "  LEFT for return  ");
+            myMenu.frame.length = 4;
+            myMenu.frame.end_line = 4;
+            Display_displayMenu(&g_mss_uart1);
+
             printf("Top-right: %d, %d\r\n", range.rtx, range.rty);
             break;
         case BOTTOM_LEFT:
             range.lbx = x_mean;
             range.lby = y_mean;
+
+            Display_clearMenu();
+            strcpy(myMenu.layer[0], "    Bottom Left    ");
+            sprintf(s, "x: %d, y: %d", range.lbx, range.lby);
+            strcpy(myMenu.layer[1], s);
+            strcpy(myMenu.layer[3], "  LEFT for return  ");
+            myMenu.frame.length = 4;
+            myMenu.frame.end_line = 4;
+            Display_displayMenu(&g_mss_uart1);
+
             printf("Bottom-left: %d, %d\r\n", range.lbx, range.lby);
             break;
         case BOTTOM_RIGHT:
             range.rbx = x_mean;
             range.rby = y_mean;
+
+            Display_clearMenu();
+            strcpy(myMenu.layer[0], "   Bottom Right    ");
+            sprintf(s, "x: %d, y: %d", range.rbx, range.rby);
+            strcpy(myMenu.layer[1], s);
+            strcpy(myMenu.layer[3], "  LEFT for return  ");
+            myMenu.frame.length = 4;
+            myMenu.frame.end_line = 4;
+            Display_displayMenu(&g_mss_uart1);
+
             printf("Bottom-right: %d, %d\r\n", range.rbx, range.rby);
             break;
         default:
             break;
     }
-
-    Display_returnLastMenu();
 }
 
 void Display_enterCalibrationSuccessful() {
@@ -261,7 +299,7 @@ void Display_printSuccessful() {
 }
 
 void Display_returnLastMenu() {
-    if (myMenu.curr_location == SONG || myMenu.curr_location == MODE || 
+    if (myMenu.curr_location == SONG || myMenu.curr_location == MODE ||
         myMenu.curr_location == PRINT || myMenu.curr_location == CALIBRATION) {
         Display_clearMenu();
         Display_initializeMenu();

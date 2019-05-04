@@ -1,6 +1,7 @@
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 #include "drivers/mss_uart/mss_uart.h"
 
 #include "controller.h"
@@ -9,15 +10,56 @@
 #include "pixy.h"
 #include "soundboard.h"
 
+/******************* EXTERNAL VARIABLES *******************/
+// controller.h
+extern volatile uint8_t* command_addr;
+extern bool changed;
+// vga.h
+extern volatile int* col_addr1;
+extern volatile int* col_addr2;
+extern volatile int* col_addr3;
+extern volatile int* num_addr0;
+extern volatile int* num_addr1;
+extern volatile int* num_addr2;
+extern int number[10];
+extern sq_info sq[8];
+extern health_info health[5];
+extern int speed;
+extern bool dead;
+extern int sq_num;
+extern int longest_delay;
+// menu.h
+extern bool started;
+extern bool print_state;
+extern LCD_Display Display;
+extern Menu myMenu;
+extern Menu_Essential prev_frame;
+extern Selected selected_config;
+extern uint8_t line_start[4];
+extern uint8_t set_cursor_pos[2];
+extern uint8_t reset[1];
+extern uint8_t clear_display[2];
+// pixy.h
+extern BoundingBox range;
+extern Position pos;
+extern int score;
+extern uint16_t receive_data[14];
+// soundboard.h
+extern volatile uint8_t* soundboard_addr;
+/**********************************************************/
+
 Command NES_command_struct;
 Command prev_NES_command_struct;
 
+bool is_miss;
+int cnt;
 
 __attribute__((interrupt)) void Fabric_IRQHandler(void) {
     NVIC_ClearPendingIRQ(Fabric_IRQn);
 
     int i;
     if (started && !dead) {
+        //tiles, score and health should be update 
         for (i = 0; i < sq_num; i++) {
             random_mode(i);
         }
@@ -25,19 +67,85 @@ __attribute__((interrupt)) void Fabric_IRQHandler(void) {
         set_health();
         bool found = false;
         for (i = 0; i < heart_num; i++)
-        	if (health[i].alive)
-        		found = true;
+            if (health[i].alive)
+                found = true;
         if (!found)
-        	dead = true;
+            dead = true;
+    } else {
+        if (dead) {
+            //play "game over" sound effect
+            if (MSS_GPIO_get_outputs() == 1) {
+                MSS_GPIO_set_output(MSS_GPIO_0, 0);
+                cnt = 20;
+            } else if (MSS_GPIO_get_outputs() == 0 && (cnt > 0)) {
+                cnt--;
+            } else {
+                MSS_GPIO_set_output(MSS_GPIO_0, 1);
+                cnt = 20;
+            }
+        }
+
+        (*soundboard_addr) = 0x7F;
     }
 }
+
+void init_everything() {
+    // controller.h
+    command_addr = (uint8_t*)(CONTROLLER_ADDR);
+    // pixy.h
+    range.ltx = 112;
+    range.lty = 10;
+    range.rtx = 292;
+    range.rty = 11;
+    range.lbx = 103;
+    range.lby = 187;
+    range.rbx = 252;
+    range.rby = 188;
+
+    // menu.h
+    static const uint8_t line_start_temp[] = {0, 64, 20, 84};
+    memcpy(line_start, line_start_temp, sizeof(line_start_temp));
+    static const uint8_t set_cursor_pos_temp[] = {0xFE, CURSOR_POS_BASE};
+    memcpy(set_cursor_pos, set_cursor_pos_temp, sizeof(set_cursor_pos_temp));
+    reset[0] = 0x12;
+    static const uint8_t clear_display_temp[] = {0xFE, 0x01};
+    memcpy(clear_display, clear_display_temp, sizeof(clear_display_temp));
+    // soundboard.h
+    soundboard_addr = (uint8_t*)(SOUNDBOARD_ADDR);
+    // vga.h
+    col_addr1 = (int*)0x40050000;
+    col_addr2 = (int*)0x40050004;
+    col_addr3 = (int*)0x40050038;
+    num_addr0 = (int*)0x4005001c;
+    num_addr1 = (int*)0x40050020;
+    num_addr2 = (int*)0x40050028;
+    sq_num = 4;
+    longest_delay = 500;
+    static const int number_temp[10] = {0x0f99999f, 0x04444444, 0x0f11f88f, 0x0f11f11f,
+                                        0x0aaaaf22, 0x0f88f11f, 0x0f88f99f, 0x0f111111,
+                                        0x0f99f99f, 0x0f99f11f};
+    memcpy(number, number_temp, sizeof(number_temp));
+    // main
+    cnt = -1;
+    is_miss = false;
+}
+
 int main() {
+    // common
+    init_everything();
+
+    /* initiate Sound Board */
+    MSS_GPIO_init();
+    MSS_GPIO_config(MSS_GPIO_0, MSS_GPIO_OUTPUT_MODE);
+    MSS_GPIO_set_output(MSS_GPIO_0, 1);
+
     /* Enable FABINT Interrupt for generating tiles */
     NVIC_EnableIRQ(Fabric_IRQn);
-
+    
     // vga
     vga_init();
 
+    // pixy
     const uint8_t frame_size = 16;
     MSS_SPI_init(&g_mss_spi1);
     MSS_SPI_configure_master_mode(&g_mss_spi1, MSS_SPI_SLAVE_0, MSS_SPI_MODE0,
@@ -45,43 +153,29 @@ int main() {
 
     MSS_SPI_set_slave_select(&g_mss_spi1, MSS_SPI_SLAVE_0);
 
-    // controller
-    Display.curr_line_num = 0;
-
     /* LCD init */
     MSS_UART_init(&g_mss_uart1, MSS_UART_9600_BAUD,
                   MSS_UART_DATA_8_BITS | MSS_UART_NO_PARITY | MSS_UART_ONE_STOP_BIT);
 
-    /************* Welcome Message *************/
-
-    uint8_t tx_buff[] = "Welcome to Nintendo!";
-
-    MSS_UART_polled_tx(&g_mss_uart1, clear_display, sizeof(clear_display));
-    MSS_UART_polled_tx(&g_mss_uart1, set_cursor_pos, sizeof(set_cursor_pos));
-    MSS_UART_polled_tx_string(&g_mss_uart1, tx_buff);
-
-    /*******************************************/
-
     Display_initializeMenu();
     started = false;
+    changed = true;
 
-#ifdef INIT_DEBUG
-    printf("Controller init: %x\r\n", *command_addr);
-#endif
+    // soundboard
     (*soundboard_addr) = 0x7F;
-#ifdef INIT_DEBUG
-    printf("Sound Initial: %x\r\n", *soundboard_addr);
-    printf("Controller init: %x\r\n", *command_addr);
-#endif
 
-    bool changed = true;
     while (1) {
         // pixy
-        int i;
-        for (i = 0; i < 14;i++){
-            receive_data[i] = 0;
-        }
         Two_Block data = Pixy_getData(&g_mss_spi1);
+
+#ifdef PIXY_DEBUG
+        printf(
+            "signature: %d\t    x center: %*d\t    y center: %*d\t    width: %*d\t    height: %*d\t 	column: %d\r\n",
+            data.signature1, 3, data.x1, 3, data.y1, 3, data.width1, 3, data.height1, data.col1);
+        printf(
+            "signature: %d\t    x center: %*d\t    y center: %*d\t    width: %*d\t    height: %*d\t 	column: %d\r\n",
+            data.signature2, 3, data.x2, 3, data.y2, 3, data.width2, 3, data.height2, data.col2);
+#endif
 
         // LCD display
         if (changed) {
@@ -105,193 +199,7 @@ int main() {
         // controller
         prev_NES_command_struct = NES_command_struct;
         Controller_getCommand(&NES_command_struct);
-
-        if (NES_command_struct.right) {
-            if (!(prev_NES_command_struct.right && NES_command_struct.right)) {
-                switch (myMenu.curr_location) {
-                    case ROOT:
-                        if (myMenu.frame.curr_selection == 0) {
-                            Display_enterStart();
-                            changed = true;
-                        } else if (myMenu.frame.curr_selection == 1) {
-                            Display_enterModeSelections();
-                            changed = true;
-                        } else if (myMenu.frame.curr_selection == 2) {
-                            Display_enterSongSelections();
-                            changed = true;
-                        } else if (myMenu.frame.curr_selection == 3) {
-                            Display_enterPrintConfig();
-                            changed = true;
-                        } else if (myMenu.frame.curr_selection == 4) {
-                            Display_enterCalibrationMode();
-                            changed = true;
-                        }
-                        break;
-                    case MODE:
-                        if (myMenu.frame.curr_selection == 0) {
-                            Display_printSuccessful();
-                            selected_config.selected_mode = SLOW;
-                            speed = -5;
-                            changed = true;
-                        } else if (myMenu.frame.curr_selection == 1) {
-                            selected_config.selected_mode = MEDIUM;
-                            speed = -10;
-                            Display_printSuccessful();
-                            changed = true;
-                        } else if (myMenu.frame.curr_selection == 2) {
-                            selected_config.selected_mode = FAST;
-                            speed = -15;
-                            Display_printSuccessful();
-                            changed = true;
-                        }
-                        break;
-                    case SONG:
-                        selected_config.selected_song = myMenu.frame.curr_selection + 1;
-                        Display_printSuccessful();
-                        changed = true;
-                        break;
-                    case CALIBRATION:
-                        if (myMenu.frame.curr_selection == 0) {
-                            pos = TOP_LEFT;
-                            Display_enterCalibration();
-                            changed = true;
-                        } else if (myMenu.frame.curr_selection == 1) {
-                            pos = TOP_RIGHT;
-                            Display_enterCalibration();
-                            changed = true;
-                        } else if (myMenu.frame.curr_selection == 2) {
-                            pos = BOTTOM_RIGHT;
-                            Display_enterCalibration();
-                            changed = true;
-                        } else if (myMenu.frame.curr_selection == 3) {
-                            pos = BOTTOM_LEFT;
-                            Display_enterCalibration();
-                            changed = true;
-                        }
-                        break;
-                    default:
-                        break;
-                }
-                continue;
-            }
-        }
-        if (NES_command_struct.left) {
-            if (!(prev_NES_command_struct.left && NES_command_struct.left)) {
-                if (!started) {
-                    Display_returnLastMenu();
-                    changed = true;
-                    continue;
-                }
-            }
-        }
-        if (NES_command_struct.down) {
-            if (!(prev_NES_command_struct.down && NES_command_struct.down)) {
-                if (!started && !print_state) {
-                    Display_scrollDownMenu();
-                    changed = true;
-                    continue;
-                }
-            }
-        }
-        if (NES_command_struct.up) {
-            if (!(prev_NES_command_struct.up && NES_command_struct.up)) {
-                if (!started && !print_state) {
-                    Display_scrollUpMenu();
-                    changed = true;
-                    continue;
-                }
-            }
-        }
-        if (NES_command_struct.select) {
-            if (!(prev_NES_command_struct.select && NES_command_struct.select)) {
-                switch (myMenu.curr_location) {
-                    case ROOT:
-                        if (myMenu.frame.curr_selection == 0) {
-                            Display_enterStart();
-                            changed = true;
-                        } else if (myMenu.frame.curr_selection == 1) {
-                            Display_enterModeSelections();
-                            changed = true;
-                        } else if (myMenu.frame.curr_selection == 2) {
-                            Display_enterSongSelections();
-                            changed = true;
-                        } else if (myMenu.frame.curr_selection == 3) {
-                            Display_enterPrintConfig();
-                            changed = true;
-                        } else if (myMenu.frame.curr_selection == 4) {
-                            Display_enterCalibrationMode();
-                            changed = true;
-                        }
-                        break;
-                    case MODE:
-                        if (myMenu.frame.curr_selection == 0) {
-                            Display_printSuccessful();
-                            selected_config.selected_mode = SLOW;
-                            speed = -5;
-                            changed = true;
-                        } else if (myMenu.frame.curr_selection == 1) {
-                            selected_config.selected_mode = MEDIUM;
-                            speed = -10;
-                            Display_printSuccessful();
-                            changed = true;
-                        } else if (myMenu.frame.curr_selection == 2) {
-                            selected_config.selected_mode = FAST;
-                            speed = -15;
-                            Display_printSuccessful();
-                            changed = true;
-                        }
-                        break;
-                    case SONG:
-                        selected_config.selected_song = myMenu.frame.curr_selection + 1;
-                        Display_printSuccessful();
-                        changed = true;
-                        break;
-                    case CALIBRATION:
-                        if (myMenu.frame.curr_selection == 0) {
-                            pos = TOP_LEFT;
-                            Display_enterCalibration();
-                            changed = true;
-                        } else if (myMenu.frame.curr_selection == 1) {
-                            pos = TOP_RIGHT;
-                            Display_enterCalibration();
-                            changed = true;
-                        } else if (myMenu.frame.curr_selection == 2) {
-                            pos = BOTTOM_RIGHT;
-                            Display_enterCalibration();
-                            changed = true;
-                        } else if (myMenu.frame.curr_selection == 3) {
-                            pos = BOTTOM_LEFT;
-                            Display_enterCalibration();
-                            changed = true;
-                        }
-                        break;
-                    default:
-                        break;
-                }
-                continue;
-            }
-        }
-        if (NES_command_struct.button_a) {
-            if (!(prev_NES_command_struct.button_a && NES_command_struct.button_a)) {
-                MSS_UART_polled_tx(&g_mss_uart1, reset, sizeof(reset));
-                Display_clearMenu();
-                Display_initializeMenu();
-                started = false;
-                prev_frame = myMenu.frame;
-                changed = true;
-            }
-        }
-        if (NES_command_struct.button_b) {
-            if (!(prev_NES_command_struct.button_b && NES_command_struct.button_b)) {
-                if (started) {
-                    Display_returnLastMenu();
-                    changed = true;
-                    vga_init();
-                    (*soundboard_addr) &= (~(1 << 6)) & (0xFF);
-                    continue;
-                }
-            }
-        }
+        Controller_getAction(&NES_command_struct, &prev_NES_command_struct);
     }
 
     return 0;
